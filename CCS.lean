@@ -1,58 +1,6 @@
 import Lean
 import Std.Data.List.Lemmas
--- import Mathlib.Data.FinEnum
-
-class Finite (α : Type) where
-  elems : List α
-  complete : ∀ a, a ∈ elems 
-
-inductive List.Any (p : α → Prop) : List α → Prop
-  | head : (p hd) → Any p (hd :: tl)
-  | tail : (Any p tl) → Any p (hd :: tl)
-
-theorem List.Any.iff_exists_satisfying_mem {l : List α} : l.Any p ↔ ∃ a, (a ∈ l) ∧ (p a) where
-  mp ha := by
-    induction ha 
-    case head h => exact ⟨_, ⟨.head _, h⟩⟩  
-    case tail hi => exact hi.elim fun _ ⟨hm, hp⟩ => ⟨_, ⟨.tail _ hm, hp⟩⟩  
-  mpr h := by
-    have ⟨_, hm, hp⟩ := h; clear h
-    induction hm
-    case head => exact .head ‹_› 
-    case tail => exact .tail ‹_› 
-
-def List.any' (p : α → Prop) [DecidablePred p] : List α → Bool
-  | [] => false
-  | hd :: tl => if p hd then true else tl.any' p
-
-theorem List.Any.iff_any' {l : List α} [DecidablePred p] : l.Any p ↔ l.any' p where
-  mp ha := by induction ha <;> simp_all [any']
-  mpr h := by
-    induction l <;> simp_all [any']
-    case cons hi =>
-      split at h
-      case inl => exact .head ‹_›
-      case inr => exact .tail $ hi h
-
-instance [DecidablePred p] : DecidablePred (List.Any p) :=
-  fun l => 
-    if h : l.any' p
-    then .isTrue (List.Any.iff_any'.mpr h) 
-    else .isFalse (mt List.Any.iff_any'.mp $ h) 
-
-instance [f : Finite α] [DecidablePred p] : Decidable (∃ a : α, p a) :=
-  if h : f.elems.Any (p ·) 
-  then .isTrue $ List.Any.iff_exists_satisfying_mem.mp h |>.elim fun a ⟨_, h⟩ => ⟨a, h⟩
-  else .isFalse fun ⟨a, ha⟩ => (mt List.Any.iff_exists_satisfying_mem.mpr $ h) ⟨a, f.complete _, ha⟩  
-
-
-
-
-
-
-
-
-
+import Mathlib.Data.Fintype.Basic
 
 inductive Action (Name : Type)
   | tau
@@ -65,13 +13,13 @@ notation "τ" => Action.tau
 instance : Coe α (Action α) where
   coe := .plain
 
-open List in 
-instance [fin : Finite Name] : Finite (Action Name) where
-  elems := τ :: (fin.elems.map .bar ++ fin.elems.map .plain)
+open Finset in 
+instance [fin : Fintype Name] [DecidableEq Name] : Fintype (Action Name) where
+  elems := insert τ (fin.elems.image .bar ∪ fin.elems.image .plain)
   complete
-    | τ          => .head _
-    | .bar _     => .tail _ $ mem_append_of_mem_left _ $ mem_map_of_mem _ $ fin.complete _ 
-    | (_ : Name) => .tail _ $ mem_append_of_mem_right _ $ mem_map_of_mem _ $ fin.complete _ 
+    | τ          => mem_insert_self ..
+    | .bar _     => mem_insert_of_mem $ mem_union_left  _ $ mem_image_of_mem _ $ fin.complete _ 
+    | (_ : Name) => mem_insert_of_mem $ mem_union_right _ $ mem_image_of_mem _ $ fin.complete _
 
 def Action.barred : Action Name → Action Name
   | τ          => τ
@@ -161,7 +109,7 @@ notation p " -[" α "]→ " p' => CCS.Transition p α p'
 
 section Decidable
 
-variable [DecidableEq Name] [DecidableEq Const] [Finite Name] [CCS.Interpretable Const Name]
+variable [DecidableEq Name] [DecidableEq Const] [Fintype Name] [CCS.Interpretable Const Name]
 variable [∀ (c : Const) (act : Action Name) p, Decidable $ CCS.Interpretable.transition c act p]
 
 def CCS.transition : (CCS Name Const) → (Action Name) → (CCS Name Const) → Bool 
@@ -244,8 +192,8 @@ inductive N
   | in20 | in50 | outCoke | outMars
   deriving DecidableEq
 
-instance : Finite N where
-  elems := [.in20, .in50, .outCoke, .outMars] 
+instance : Fintype N where
+  elems := {.in20, .in50, .outCoke, .outMars}
   complete n := by cases n <;> decide
 
 inductive C
