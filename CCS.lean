@@ -2,11 +2,17 @@ import Lean
 import Std.Data.List.Lemmas
 import Mathlib.Data.Fintype.Basic
 
+open Lean (HashSet)
+open Std (HashMap)
+
+instance [Hashable α] [BEq α] : Membership α (HashSet α) where
+  mem a s := s.contains a
+
 inductive Action (Name : Type)
   | tau
   | bar (n : Name)
   | plain (n : Name)
-  deriving DecidableEq
+  deriving DecidableEq, Hashable, BEq
 
 notation "τ" => Action.tau
 
@@ -62,7 +68,7 @@ inductive CCS (Name : Type) (Const : Type := Empty)
   | parallel : CCS Name Const → CCS Name Const → CCS Name Const
   | restrict : Name → CCS Name Const → CCS Name Const
   | const    : Const → CCS Name Const
-  deriving DecidableEq
+  deriving DecidableEq, Hashable, BEq
 
 instance : OfNat (CCS Name Const) 0 where
   ofNat := .null
@@ -163,28 +169,104 @@ instance : Decidable (p -[act]→ p') :=
 
 end Decidable
 
-section Computable
+namespace LTS
 
-variable (State Action : Type) [Hashable State] [Hashable Action] [BEq State] [BEq Action]
+-- TODO: Most of the following functions should use `HashMap.modify`.
 
-structure LTS.Edge :=
-  src : State
-  act : Action
-  dst : State
-  deriving Hashable, BEq
+variable (State Label : Type) [Hashable State] [Hashable Label] [BEq State] [BEq Label]
 
-structure LTS where
-  edges : Lean.HashSet $ LTS.Edge State Action
+abbrev Successors := HashMap Label $ HashSet State
 
-def CCS.lts [Interpretable Const Name] : LTS State Action := sorry
+abbrev Transitions := HashMap State $ Successors State Label
 
-end Computable
+structure Transition (State Label : Type) where
+  src   : State
+  label : Label
+  dst   : State
 
+variable {State Label}
 
+inductive Transition.Mem : State → Transition State Label → Prop
+  | src : Mem s ⟨s, _, _⟩
+  | dst : Mem s ⟨_, _, s⟩
 
+instance : Membership State (Transition State Label) where
+  mem := Transition.Mem
 
+inductive Transitions.Mem : (Transition State Label) → (Transitions State Label) → Prop 
+  | intro : (ts.find? t.src = some ts') → (ts'.find? t.label = some succs) → (succs.contains t.dst) → Mem t ts 
 
+instance : Membership (Transition State Label) (Transitions State Label) where
+  mem := Transitions.Mem
 
+def Successors.merge (succ₁ succ₂ : Successors State Label) : Successors State Label :=
+  HashMap.mergeWith (fun _ s₁ s₂ => s₁.merge s₂) succ₁ succ₂
+
+namespace Transitions
+
+def merge (ts₁ ts₂ : Transitions State Label) : Transitions State Label :=
+  HashMap.mergeWith (fun _ s₁ s₂ => s₁.merge s₂) ts₁ ts₂
+
+def mergeInto (ts : Transitions State Label) (src : State) (succs : Successors State Label) : 
+    Transitions State Label :=
+  let srcSuccs := ts.findD src ∅
+  let srcSuccs' := srcSuccs.merge succs
+  HashMap.insert ts src srcSuccs'
+
+def insert (ts : Transitions State Label) (src : State) (l : Label) (dst : State) : 
+    Transitions State Label :=
+  let srcSuccs  := ts.findD src ∅
+  let lSuccs    := srcSuccs.findD l ∅
+  let lSuccs'   := lSuccs.insert dst
+  let srcSuccs' := srcSuccs.insert l lSuccs'
+  HashMap.insert ts src srcSuccs'
+
+end Transitions
+
+variable (State Label) in
+structure _root_.LTS where
+  states      : HashSet State 
+  transitions : Transitions State Label
+
+def empty : LTS State Label where
+  states := ∅
+  transitions := ∅
+
+def successors (lts : LTS State Label) (src : State) : Successors State Label :=
+  lts.transitions.findD src ∅
+
+instance : EmptyCollection (LTS State Label) where
+  emptyCollection := .empty
+
+end LTS
+
+namespace CCS
+
+variable [CCS.Interpretable Const Name] [Hashable Name] [Hashable Const] [BEq Name] [BEq Const]
+
+def lts : (CCS Name Const) → LTS (CCS Name Const) (Action Name) 
+  | 0 => ∅
+  | s@(α ° p) => { 
+      states := p.lts.states.insert s, 
+      transitions := p.lts.transitions.insert s α p
+    }
+  | s@(p + q) => { 
+      states := p.lts.states.merge q.lts.states |>.insert s, -- Note, states p and q might be redundant from here on.
+      transitions := p.lts.transitions |>.merge q.lts.transitions |>.mergeInto s (p.lts.successors p |>.merge $ q.lts.successors q)
+    }
+  | p ‖ q => sorry
+  | (ν a) p => sorry
+  | (c : Const) => sorry
+
+variable {s : CCS Name Const}
+
+theorem CCS.lts_state_mem_iff : x ∈ s.lts.states ↔ ∃ t, t ∈ s.lts.transitions ∧ x ∈ t :=
+  sorry
+
+theorem CCS.lts_transition_mem_iff : ⟨p, α, p'⟩ ∈ s.lts.transitions ↔ p -[α]→ p' :=
+  sorry
+
+end CCS
 
 -- Examples from http://www.cse.unsw.edu.au/~cs3151/22T2/Week%2008/Wednesday%20Slides.pdf
 
@@ -204,8 +286,8 @@ open N C
 
 def VM₁ : CCS N C := in20 ° outCoke ° in50 ° outMars ° repeat₁
 def VM₂ : CCS N C := (in50 ° outMars ° repeat₂) + (in20 ° outCoke ° repeat₂)
-def VM₃ : CCS N C := in50 ° (outCoke ° 0 + outMars ° 0)
-def VM₄ : CCS N C := (in50 ° outCoke ° 0) + (in50 ° outMars ° 0)
+def VM₃ : CCS N := in50 ° (outCoke ° 0 + outMars ° 0)
+def VM₄ : CCS N := (in50 ° outCoke ° 0) + (in50 ° outMars ° 0)
 
 instance : CCS.Interpretable C N where
   transition 
@@ -233,4 +315,3 @@ example : VM₂ -[in50]→ (outMars ° repeat₂) := by decide
 example : VM₂ -[in20]→ (outCoke ° repeat₂) := by decide
 example : ¬ VM₂ -[in50]→ (outCoke ° repeat₂) := by decide
 example : repeat₂ -[τ]→ VM₂ := by decide
-
