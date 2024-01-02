@@ -43,6 +43,7 @@ namespace Transitions
 def merge (ts₁ ts₂ : Transitions State Label) : Transitions State Label :=
   HashMap.mergeWith (fun _ s₁ s₂ => s₁.merge s₂) ts₁ ts₂
 
+-- For each `(αᵢ, dstᵢ) ∈ succs` add the transition `(src, αᵢ, dstᵢ)` to `ts`.
 def mergeInto (ts : Transitions State Label) (src : State) (succs : Successors State Label) :
     Transitions State Label :=
   let srcSuccs := ts.findD src ∅
@@ -59,6 +60,8 @@ def insert (ts : Transitions State Label) (src : State) (l : Label) (dst : State
 
 end Transitions
 
+-- TODO: Why do we have separate sets of states and transitions? Doesn't the set of transitions also
+--       tell us all of the states?
 variable (State Label) in
 structure _root_.LTS where
   states      : HashSet State

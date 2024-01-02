@@ -1,4 +1,3 @@
-import CCS.Lean
 import CCS.Action
 
 inductive CCS (Name : Type) (Const : Type := Empty)
