@@ -19,12 +19,12 @@ notation "τ" => Action.tau
 instance : Coe α (Action α) where
   coe := .plain
 
-open Finset in 
+open Finset in
 instance [fin : Fintype Name] [DecidableEq Name] : Fintype (Action Name) where
   elems := insert τ (fin.elems.image .bar ∪ fin.elems.image .plain)
   complete
     | τ          => mem_insert_self ..
-    | .bar _     => mem_insert_of_mem $ mem_union_left  _ $ mem_image_of_mem _ $ fin.complete _ 
+    | .bar _     => mem_insert_of_mem $ mem_union_left  _ $ mem_image_of_mem _ $ fin.complete _
     | (_ : Name) => mem_insert_of_mem $ mem_union_right _ $ mem_image_of_mem _ $ fin.complete _
 
 def Action.barred : Action Name → Action Name
@@ -55,9 +55,9 @@ theorem Action.References.iff_references : act.References n ↔ act.references n
   all_goals constructor <;> (intro h; cases h; constructor)
 
 instance : Decidable (n ∈ act) :=
-  if h : act.references n 
-  then .isTrue (Action.References.iff_references.mpr h) 
-  else .isFalse (mt Action.References.iff_references.mp $ h) 
+  if h : act.references n
+  then .isTrue (Action.References.iff_references.mpr h)
+  else .isFalse (mt Action.References.iff_references.mp $ h)
 
 end Decidable
 
@@ -96,10 +96,10 @@ section Unhygienic
 
 set_option hygiene false
 
-local notation p " -[" α "]→ " p' => CCS.Transition p α p' 
+local notation p " -[" α "]→ " p' => CCS.Transition p α p'
 
-inductive CCS.Transition [Interpretable Const Name] : 
-    (CCS Name Const) → (Action Name) → (CCS Name Const) → Prop 
+inductive CCS.Transition [Interpretable Const Name] :
+    (CCS Name Const) → (Action Name) → (CCS Name Const) → Prop
   | «prefix»      : (α ° p) -[α]→ p
   | choiceLeft    : (p -[α]→ p') → (p + q) -[α]→ p'
   | choiceRight   : (q -[α]→ q') → (p + q) -[α]→ q'
@@ -111,19 +111,19 @@ inductive CCS.Transition [Interpretable Const Name] :
 
 end Unhygienic
 
-notation p " -[" α "]→ " p' => CCS.Transition p α p' 
+notation p " -[" α "]→ " p' => CCS.Transition p α p'
 
 section Decidable
 
 variable [DecidableEq Name] [DecidableEq Const] [Fintype Name] [CCS.Interpretable Const Name]
 variable [∀ (c : Const) (act : Action Name) p, Decidable $ CCS.Interpretable.transition c act p]
 
-def CCS.transition : (CCS Name Const) → (Action Name) → (CCS Name Const) → Bool 
+def CCS.transition : (CCS Name Const) → (Action Name) → (CCS Name Const) → Bool
   | α ° p, α', p' => (α = α') ∧ (p = p')
   | p + q, α, pq' => (transition p α pq') ∨ (transition q α pq')
-  | p ‖ q, α, p' ‖ q' => 
-    (transition p α p') ∧ (q = q') ∨ 
-    (transition q α q') ∧ (p = p') ∨ 
+  | p ‖ q, α, p' ‖ q' =>
+    (transition p α p') ∧ (q = q') ∨
+    (transition q α q') ∧ (p = p') ∨
     (α = τ) ∧ ∃ α', (transition p α' p') ∧ (transition q (~α') q')
   | (ν a) p, α, (ν a') p' => (transition p α p') ∧ (a ∉ α) ∧ (a = a')
   | (c : Const), α, p => Interpretable.transition c α p
@@ -136,26 +136,26 @@ theorem CCS.Transition.iff_transition : (p -[act]→ p') ↔ (CCS.transition p a
     induction t <;> simp_all [transition]
     case communication => apply Or.inr; apply Or.inr; exists ‹_›
   mpr h := by
-    induction p generalizing p' act <;> simp_all [transition]
+    induction p generalizing p' act <;> try simp_all [transition]
     case «prefix» => constructor
-    case choice hi₁ hi₂ => 
-      cases h 
+    case choice hi₁ hi₂ =>
+      cases h
       case inl h => exact .choiceLeft $ hi₁ h
       case inr h => exact .choiceRight $ hi₂ h
     case parallel hi₁ hi₂ =>
       cases p' <;> simp_all [transition]
-      case parallel => 
+      case parallel =>
         cases h <;> try cases ‹_ ∨ _ ›
-        case inl h => 
+        case inl h =>
           cases h.right
           exact .parallelLeft $ hi₁ h.left
-        case inr.inl h => 
+        case inr.inl h =>
           cases h.right
           exact .parallelRight $ hi₂ h.left
-        case inr.inr h => 
+        case inr.inr h =>
           have ⟨hτ, ⟨_, ha₁, ha₂⟩⟩ := h
           subst hτ
-          exact .communication (hi₁ ha₁) (hi₂ ha₂)     
+          exact .communication (hi₁ ha₁) (hi₂ ha₂)
     case restrict hi =>
       cases p' <;> simp_all [transition]
       case restrict => exact .restriction (hi h.left) (h.right.right ▸ h.right.left)
@@ -163,9 +163,9 @@ theorem CCS.Transition.iff_transition : (p -[act]→ p') ↔ (CCS.transition p a
       exact .const h
 
 instance : Decidable (p -[act]→ p') :=
-  if h : CCS.transition p act p' 
-  then .isTrue (CCS.Transition.iff_transition.mpr h) 
-  else .isFalse (mt CCS.Transition.iff_transition.mp $ h) 
+  if h : CCS.transition p act p'
+  then .isTrue (CCS.Transition.iff_transition.mpr h)
+  else .isFalse (mt CCS.Transition.iff_transition.mp $ h)
 
 end Decidable
 
@@ -193,8 +193,8 @@ inductive Transition.Mem : State → Transition State Label → Prop
 instance : Membership State (Transition State Label) where
   mem := Transition.Mem
 
-inductive Transitions.Mem : (Transition State Label) → (Transitions State Label) → Prop 
-  | intro : (ts.find? t.src = some ts') → (ts'.find? t.label = some succs) → (succs.contains t.dst) → Mem t ts 
+inductive Transitions.Mem : (Transition State Label) → (Transitions State Label) → Prop
+  | intro : (ts.find? t.src = some ts') → (ts'.find? t.label = some succs) → (succs.contains t.dst) → Mem t ts
 
 instance : Membership (Transition State Label) (Transitions State Label) where
   mem := Transitions.Mem
@@ -207,13 +207,13 @@ namespace Transitions
 def merge (ts₁ ts₂ : Transitions State Label) : Transitions State Label :=
   HashMap.mergeWith (fun _ s₁ s₂ => s₁.merge s₂) ts₁ ts₂
 
-def mergeInto (ts : Transitions State Label) (src : State) (succs : Successors State Label) : 
+def mergeInto (ts : Transitions State Label) (src : State) (succs : Successors State Label) :
     Transitions State Label :=
   let srcSuccs := ts.findD src ∅
   let srcSuccs' := srcSuccs.merge succs
   HashMap.insert ts src srcSuccs'
 
-def insert (ts : Transitions State Label) (src : State) (l : Label) (dst : State) : 
+def insert (ts : Transitions State Label) (src : State) (l : Label) (dst : State) :
     Transitions State Label :=
   let srcSuccs  := ts.findD src ∅
   let lSuccs    := srcSuccs.findD l ∅
@@ -225,7 +225,7 @@ end Transitions
 
 variable (State Label) in
 structure _root_.LTS where
-  states      : HashSet State 
+  states      : HashSet State
   transitions : Transitions State Label
 
 def empty : LTS State Label where
@@ -244,13 +244,13 @@ namespace CCS
 
 variable [CCS.Interpretable Const Name] [Hashable Name] [Hashable Const] [BEq Name] [BEq Const]
 
-def lts : (CCS Name Const) → LTS (CCS Name Const) (Action Name) 
+def lts : (CCS Name Const) → LTS (CCS Name Const) (Action Name)
   | 0 => ∅
-  | s@(α ° p) => { 
-      states := p.lts.states.insert s, 
+  | s@(α ° p) => {
+      states := p.lts.states.insert s,
       transitions := p.lts.transitions.insert s α p
     }
-  | s@(p + q) => { 
+  | s@(p + q) => {
       states := p.lts.states.merge q.lts.states |>.insert s, -- Note, states p and q might be redundant from here on.
       transitions := p.lts.transitions |>.merge q.lts.transitions |>.mergeInto s (p.lts.successors p |>.merge $ q.lts.successors q)
     }
@@ -270,7 +270,7 @@ end CCS
 
 -- Examples from http://www.cse.unsw.edu.au/~cs3151/22T2/Week%2008/Wednesday%20Slides.pdf
 
-inductive N  
+inductive N
   | in20 | in50 | outCoke | outMars
   deriving DecidableEq
 
@@ -290,22 +290,22 @@ def VM₃ : CCS N := in50 ° (outCoke ° 0 + outMars ° 0)
 def VM₄ : CCS N := (in50 ° outCoke ° 0) + (in50 ° outMars ° 0)
 
 instance : CCS.Interpretable C N where
-  transition 
+  transition
     | .repeat₁, τ, p => p = VM₁
     | .repeat₂, τ, p => p = VM₂
     | _, _, _ => False
 
 instance : Decidable $ CCS.Interpretable.transition (c : C) (act : Action N) p :=
   match c with
-  | .repeat₁ => 
-    if ha : act = τ then if hp : p = VM₁ 
-    then .isTrue  $ ha ▸ hp 
-    else .isFalse $ ha ▸ hp 
+  | .repeat₁ =>
+    if ha : act = τ then if hp : p = VM₁
+    then .isTrue  $ ha ▸ hp
+    else .isFalse $ ha ▸ hp
     else .isFalse $ by simp [CCS.Interpretable.transition, ha]
   | .repeat₂ =>
-    if ha : act = τ then if hp : p = VM₂ 
-    then .isTrue  $ ha ▸ hp 
-    else .isFalse $ ha ▸ hp 
+    if ha : act = τ then if hp : p = VM₂
+    then .isTrue  $ ha ▸ hp
+    else .isFalse $ ha ▸ hp
     else .isFalse $ by simp [CCS.Interpretable.transition, ha]
 
 example : VM₁ -[in20]→ (outCoke ° in50 ° outMars ° repeat₁) := by decide
